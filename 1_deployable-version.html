@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="川菜馆在线点餐系统 - 专业的餐饮点餐解决方案">
+    <meta name="keywords" content="点餐系统,川菜馆,在线订餐,餐饮管理">
+    <title>川菜馆在线点餐系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥘</text></svg>">
+    <style>
+        .menu-item-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+        }
+        .cart-item-enter {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #dc2626;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* PWA支持 */
+        @media (display-mode: standalone) {
+            .container {
+                padding-top: 2rem;
+            }
+        }
+        
+        /* 离线支持样式 */
+        .offline-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #dc2626;
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 离线指示器 -->
+    <div id="offlineIndicator" class="offline-indicator">
+        网络连接已断开，正在使用离线模式
+    </div>
+
+    <!-- 加载画面 -->
+    <div id="loadingScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 to-orange-500">
+        <div class="text-white text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <h2 class="text-2xl font-bold mb-2">川菜馆点餐系统</h2>
+            <p>正在启动...</p>
+        </div>
+    </div>
+
+    <!-- 登录界面 -->
+    <div id="loginScreen" class="min-h-screen bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center px-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="text-6xl mb-4">🥘</div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">川菜馆点餐系统</h1>
+                <p class="text-gray-600">欢迎光临，请登录您的账户</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <input id="username" name="username" type="text" required autocomplete="username"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent">
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input id="password" name="password" type="password" required autocomplete="current-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent">
+                </div>
+
+                <div id="loginError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded hidden"></div>
+
+                <button type="submit" id="loginBtn"
+                        class="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    登录
+                </button>
+            </form>
+
+            <div class="mt-6 text-center text-sm text-gray-600">
+                <p>管理员: admin / admin123</p>
+                <p>顾客: customer / customer123</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 顾客界面 -->
+    <div id="customerView" class="min-h-screen bg-gray-50 hidden">
+        <header class="bg-red-600 text-white p-4 shadow-lg sticky top-0 z-30">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <span>🥘</span>
+                    川菜馆在线点餐
+                </h1>
+                <div class="flex items-center gap-4">
+                    <span id="welcomeUser" class="hidden sm:inline">欢迎, 用户</span>
+                    <button onclick="showAdminView()" class="px-3 sm:px-4 py-2 bg-orange-500 rounded-lg hover:bg-orange-600 transition text-sm">
+                        管理后台
+                    </button>
+                    <button onclick="logout()" class="p-2 hover:bg-red-700 rounded-lg transition">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-4 py-8">
+            <!-- 桌号输入 -->
+            <div class="mb-6 bg-white rounded-lg shadow p-4">
+                <div class="flex items-center gap-4">
+                    <label for="tableNumber" class="font-semibold whitespace-nowrap">桌号:</label>
+                    <input id="tableNumber" type="text" placeholder="请输入桌号 (如: 01, 02, 03)"
+                           class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent">
+                </div>
+            </div>
+
+            <!-- 分类按钮 -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button onclick="selectCategory('热菜')" data-category="热菜"
+                        class="category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-red-600 text-white">热菜</button>
+                <button onclick="selectCategory('凉菜')" data-category="凉菜"
+                        class="category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100">凉菜</button>
+                <button onclick="selectCategory('主食')" data-category="主食"
+                        class="category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100">主食</button>
+                <button onclick="selectCategory('汤品')" data-category="汤品"
+                        class="category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100">汤品</button>
+                <button onclick="selectCategory('饮料')" data-category="饮料"
+                        class="category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100">饮料</button>
+            </div>
+
+            <!-- 菜品网格 -->
+            <div id="menuGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mb-20">
+                <div class="col-span-full text-center py-8">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p>加载菜单中...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- 购物车按钮 -->
+        <button onclick="toggleCart()"
+                class="fixed bottom-6 right-6 bg-red-600 text-white p-4 rounded-full shadow-lg hover:bg-red-700 transition z-40">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 2L6 9H22L19 2H9Z"/>
+                <path d="M6 9H18V20C18 21.1046 17.1046 22 16 22H8C6.89543 22 6 21.1046 6 20V9Z"/>
+            </svg>
+            <span id="cartCount" class="absolute -top-2 -right-2 bg-yellow-400 text-red-600 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold hidden">0</span>
+        </button>
+
+        <!-- 购物车模态框 -->
+        <div id="cartModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end hidden">
+            <div class="bg-white w-full max-w-md h-full shadow-xl">
+                <div class="p-6 border-b">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xl font-bold">🛒 购物车</h2>
+                        <button onclick="toggleCart()" class="p-2 hover:bg-gray-100 rounded-lg">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div id="cartItems" class="space-y-4">
+                        <p class="text-gray-500 text-center">购物车是空的</p>
+                    </div>
+                </div>
+                <div id="cartSummary" class="border-t p-6 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xl font-semibold">总计</span>
+                        <span id="totalAmount" class="text-xl font-bold text-red-600">¥0</span>
+                    </div>
+                    <button onclick="placeOrder()" id="orderBtn"
+                            class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                        📝 提交订单
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理员界面 -->
+    <div id="adminView" class="min-h-screen bg-gray-50 hidden">
+        <header class="bg-green-600 text-white p-4 shadow-lg sticky top-0 z-30">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <button onclick="backToCustomer()" class="p-2 hover:bg-green-700 rounded-lg transition">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h1 class="text-xl sm:text-2xl font-bold">📊 管理后台</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span id="adminUser" class="hidden sm:inline">管理员: admin</span>
+                    <button onclick="logout()" class="p-2 hover:bg-green-700 rounded-lg transition">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 标签页 -->
+        <div class="bg-white border-b sticky top-16 z-20">
+            <div class="container mx-auto px-4">
+                <div class="flex gap-4 sm:gap-8 overflow-x-auto">
+                    <button onclick="showOrdersTab()" id="ordersTab"
+                            class="py-4 border-b-2 border-green-600 text-green-600 font-medium whitespace-nowrap">📋 订单管理</button>
+                    <button onclick="showMenuTab()" id="menuTab"
+                            class="py-4 border-b-2 border-transparent text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap">🍽️ 菜单管理</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <main class="container mx-auto px-4 py-8">
+            <!-- 订单内容 -->
+            <div id="ordersContent">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">📋 订单列表</h2>
+                    <div class="flex gap-2">
+                        <button onclick="exportOrders()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+                            📥 导出订单
+                        </button>
+                        <button onclick="refreshOrders()" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6M1 20v-6h6"/>
+                                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                            </svg>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+                <div id="ordersList">
+                    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">📋 加载订单中...</div>
+                </div>
+            </div>
+
+            <!-- 菜单内容 -->
+            <div id="menuContent" class="hidden">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                        <h3 class="text-lg font-semibold">🍽️ 菜品管理</h3>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="importMenu()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+                                📥 导入菜单
+                            </button>
+                            <button onclick="updateAllImages()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm">
+                                🖼️ 更新图片
+                            </button>
+                            <button onclick="addMenuItem()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+                                ➕ 添加菜品
+                            </button>
+                        </div>
+                    </div>
+                    <div id="menuTable">
+                        <p class="text-center text-gray-500 py-8">🍽️ 加载菜单中...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 成功消息 -->
+    <div id="successMessage" class="fixed top-20 right-4 bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-lg shadow-lg hidden z-50 max-w-sm">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+            </svg>
+            <span id="successText" class="break-words">操作成功！</span>
+        </div>
+    </div>
+
+    <script>
+        // 全局配置
+        const CONFIG = {
+            APP_NAME: '川菜馆在线点餐系统',
+            VERSION: '1.0.0',
+            STORAGE_PREFIX: 'restaurant_',
+            ONLINE_MODE: true,
+            AUTO_SAVE_INTERVAL: 30000, // 30秒自动保存
+            MAX_ORDERS: 100
+        };
+
+        // 菜单数据
+        let mockMenu = [
+            { id: '1', name: '麻婆豆腐', category: '热菜', price: 28, description: '经典川菜，麻辣鲜香', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZlZjNkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM2MjY2IiBmb250LXNpemU9IjE2Ij7kuabkuqTmuLjlrablj4LotKc8L3RleHQ+PC9zdmc+', spicy: 3, stock: 50 },
+            { id: '2', name: '宫保鸡丁', category: '热菜', price: 32, description: '鸡肉花生米，酸甜微辣', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZlZjNkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM2MjY2IiBmb250LXNpemU9IjE2Ij7ljZXotb/orablj5HmraXlj4LotKc8L3RleHQ+PC9zdmc+', spicy: 2, stock: 30 },
+            { id: '3', name: '水煮鱼', category: '热菜', price: 58, description: '鲜嫩鱼片，麻辣味浓', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZlZjNkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM2MjY2IiBmb250LXNpemU9IjE2Ij7mlrDotKfnlLXMlr4g56ul5YmN55yB5LiK6LGoPC90ZXh0Pjwvc3ZnPg==', spicy: 4, stock: 20 },
+            { id: '4', name: '鱼香肉丝', category: '热菜', price: 26, description: '酸甜微辣，口感丰富', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZlZjNkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM2MjY2IiBmb250LXNpemU9IjE2Ij7lm63kvZznjp/loLHlhbLotKc8L3RleHQ+PC9zdmc+', spicy: 2, stock: 40 },
+            { id: '5', name: '回锅肉', category: '热菜', price: 35, description: '肥而不腻，香辣可口', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZlZjNkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM2MjY2IiBmb250LXNpemU9IjE2Ij7lhbzooYzmmqLkuY08L3RleHQ+PC9zdmc+', spicy: 3, stock: 25 },
+            { id: '6', name: '凉拌黄瓜', category: '凉菜', price: 12, description: '清爽开胃，酸辣可口', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2YwZmZmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMjdhNzQ1IiBmb250LXNpemU9IjE2Ij7njqdlo4TpopHmnaI8L3RleHQ+PC9zdmc+', spicy: 1, stock: 60 },
+            { id: '7', name: '口水鸡', category: '凉菜', price: 38, description: '麻辣鲜香，肉质鲜嫩', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2YwZmZmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMmE3NDQ1IiBmb250LXNpemU9IjE2Ij7nvo7kvZXkuY08L3RleHQ+PC9zdmc+', spicy: 3, stock: 15 },
+            { id: '8', name: '担担面', category: '主食', price: 18, description: '四川特色面食', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZmZWQ0YyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmE5MDA4IiBmb250LXNpemU9IjE2Ij7kvZzoqY88L3RleHQ+PC9zdmc+', spicy: 2, stock: 35 },
+            { id: '9', name: '蛋炒饭', category: '主食', price: 15, description: '家常炒饭，粒粒分明', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZmZWQ0YyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmE5MDA4IiBmb250LXNpemU9IjE2Ij7ml6DmnK/lupc8L3RleHQ+PC9zdmc+', spicy: 0, stock: 50 },
+            { id: '10', name: '酸辣汤', category: '汤品', price: 20, description: '酸辣开胃，营养丰富', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2U2ZjNmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZDk3NzA2IiBmb250LXNpemU9IjE2Ij7popzoibLopqI8L3RleHQ+PC9zdmc+', spicy: 2, stock: 30 },
+            { id: '11', name: '冬瓜排骨汤', category: '汤品', price: 25, description: '清淡营养，滋补养生', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2U2ZjNmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZDk3NzA2IiBmb250LXNpemU9IjE2Ij7pooXlvpflkZjmnJ/nuL48L3RleHQ+PC9zdmc+', spicy: 0, stock: 20 },
+            { id: '12', name: '可乐', category: '饮料', price: 6, description: '冰镇可乐', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2Y5ZmFmYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZDE3NDI3IiBmb250LXNpemU9IjE2Ij7mm7LliqY8L3RleHQ+PC9zdmc+', spicy: 0, stock: 100 },
+            { id: '13', name: '酸梅汤', category: '饮料', price: 8, description: '清热解暑，酸甜可口', image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2Y5ZmFmYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZDE3NDI3IiBmb250LXNpemU9IjE2Ij7popzoYc6576O5Z+8PC90ZXh0Pjwvc3ZnPg==', spicy: 0, stock: 80 }
+        ];
+
+        // 用户数据
+        const users = {
+            'admin': { password: 'admin123', role: 'admin', name: '管理员' },
+            'customer': { password: 'customer123', role: 'customer', name: '顾客' },
+            'waiter': { password: '123456', role: 'customer', name: '服务员' }
+        };
+
+        // 全局变量
+        let currentUser = null;
+        let cart = [];
+        let currentCategory = '热菜';
+        let orders = [];
+        let isOnline = navigator.onLine;
+
+        // 本地存储管理
+        class StorageManager {
+            static get(key) {
+                try {
+                    return JSON.parse(localStorage.getItem(CONFIG.STORAGE_PREFIX + key));
+                } catch {
+                    return null;
+                }
+            }
+
+            static set(key, value) {
+                try {
+                    localStorage.setItem(CONFIG.STORAGE_PREFIX + key, JSON.stringify(value));
+                } catch (e) {
+                    console.warn('存储失败:', e);
+                }
+            }
+
+            static remove(key) {
+                localStorage.removeItem(CONFIG.STORAGE_PREFIX + key);
+            }
+        }
+
+        // 离线检测
+        window.addEventListener('online', () => {
+            isOnline = true;
+            document.getElementById('offlineIndicator').style.display = 'none';
+            showSuccess('网络连接已恢复');
+        });
+
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            document.getElementById('offlineIndicator').style.display = 'block';
+        });
+
+        // 初始化应用
+        function initApp() {
+            // 加载本地数据
+            loadLocalData();
+            
+            // 设置自动保存
+            setInterval(autoSave, CONFIG.AUTO_SAVE_INTERVAL);
+            
+            // 显示登录界面
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hidden');
+                document.getElementById('loginScreen').classList.remove('hidden');
+            }, 1500);
+
+            // PWA支持
+            if ('serviceWorker' in navigator) {
+                // 这里可以注册service worker来实现PWA功能
+            }
+        }
+
+        // 加载本地数据
+        function loadLocalData() {
+            const savedMenu = StorageManager.get('menu');
+            const savedOrders = StorageManager.get('orders');
+            
+            if (savedMenu) mockMenu = savedMenu;
+            if (savedOrders) orders = savedOrders;
+        }
+
+        // 自动保存
+        function autoSave() {
+            if (mockMenu.length > 0) {
+                StorageManager.set('menu', mockMenu);
+            }
+            if (orders.length > 0) {
+                StorageManager.set('orders', orders);
+            }
+        }
+
+        // 登录处理
+        function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const loginError = document.getElementById('loginError');
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '登录中...';
+
+            setTimeout(() => {
+                const user = users[username];
+                if (user && user.password === password) {
+                    currentUser = {
+                        username: username,
+                        role: user.role,
+                        name: user.name
+                    };
+
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('customerView').classList.remove('hidden');
+                    document.getElementById('welcomeUser').textContent = `欢迎, ${user.name}`;
+                    
+                    loadMenu();
+                    simulateRealTimeOrders();
+                    showSuccess(`登录成功！欢迎 ${user.name}`);
+                } else {
+                    loginError.textContent = '用户名或密码错误';
+                    loginError.classList.remove('hidden');
+                }
+                
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登录';
+            }, 800);
+        }
+
+        // 加载菜单
+        function loadMenu() {
+            const menuGrid = document.getElementById('menuGrid');
+            const filteredItems = mockMenu.filter(item => item.category === currentCategory);
+            
+            menuGrid.innerHTML = filteredItems.map(item => `
+                <div class="bg-white rounded-lg shadow-md overflow-hidden menu-item-hover">
+                    <img src="${item.image}" alt="${item.name}" class="w-full h-48 object-cover">
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-lg font-semibold">${item.name}</h3>
+                            <div class="text-right">
+                                <span class="text-red-600 font-bold">¥${item.price}</span>
+                                <span class="text-xs text-gray-500 block">库存:${item.stock || '充足'}</span>
+                            </div>
+                        </div>
+                        <p class="text-gray-600 text-sm mb-2">${item.description}</p>
+                        <div class="flex items-center gap-1 mb-3">
+                            ${Array.from({length: 5}, (_, i) => 
+                                `<span class="${i < (item.spicy || 0) ? 'text-red-500' : 'text-gray-300'}">🌶️</span>`
+                            ).join('')}
+                        </div>
+                        <button onclick="addToCart('${item.id}')" 
+                                class="mt-3 w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                            加入购物车
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 选择分类
+        function selectCategory(category) {
+            currentCategory = category;
+            
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                if (btn.dataset.category === category) {
+                    btn.className = 'category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-red-600 text-white';
+                } else {
+                    btn.className = 'category-btn px-4 sm:px-6 py-3 rounded-lg font-medium transition bg-white text-gray-700 hover:bg-gray-100';
+                }
+            });
+            
+            loadMenu();
+        }
+
+        // 添加到购物车
+        function addToCart(itemId) {
+            const item = mockMenu.find(i => i.id === itemId);
+            if (!item) return;
+            
+            // 检查库存
+            if (item.stock !== undefined && item.stock <= 0) {
+                showSuccess('该菜品已售完');
+                return;
+            }
+            
+            const existingItem = cart.find(cartItem => cartItem.id === itemId);
+            const currentQuantity = existingItem ? existingItem.quantity : 0;
+            
+            if (item.stock !== undefined && currentQuantity >= item.stock) {
+                showSuccess('库存不足');
+                return;
+            }
+            
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                cart.push({ ...item, quantity: 1 });
+            }
+            
+            updateCartUI();
+            showSuccess(`已添加 ${item.name} 到购物车！`);
+        }
+
+        // 更新数量
+        function updateQuantity(itemId, change) {
+            const item = cart.find(cartItem => cartItem.id === itemId);
+            if (!item) return;
+            
+            item.quantity += change;
+            if (item.quantity <= 0) {
+                cart = cart.filter(cartItem => cartItem.id !== itemId);
+            }
+            updateCartUI();
+        }
+
+        // 更新购物车UI
+        function updateCartUI() {
+            const cartCount = document.getElementById('cartCount');
+            const cartItems = document.getElementById('cartItems');
+            const cartSummary = document.getElementById('cartSummary');
+            
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+            
+            if (totalItems > 0) {
+                cartCount.textContent = totalItems;
+                cartCount.classList.remove('hidden');
+            } else {
+                cartCount.classList.add('hidden');
+            }
+            
+            if (cart.length === 0) {
+                cartItems.innerHTML = '<p class="text-gray-500 text-center">购物车是空的</p>';
+                cartSummary.classList.add('hidden');
+            } else {
+                cartItems.innerHTML = cart.map(item => `
+                    <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg cart-item-enter">
+                        <img src="${item.image}" alt="${item.name}" class="w-16 h-16 object-cover rounded">
+                        <div class="flex-1">
+                            <h4 class="font-semibold">${item.name}</h4>
+                            <p class="text-red-600 font-bold">¥${item.price}</p>
+                            ${item.stock !== undefined ? `<p class="text-xs text-gray-500">库存: ${item.stock}</p>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="updateQuantity('${item.id}', -1)" class="p-1 hover:bg-gray-200 rounded">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14"/>
+                                </svg>
+                            </button>
+                            <span class="w-8 text-center">${item.quantity}</span>
+                            <button onclick="updateQuantity('${item.id}', 1)" class="p-1 hover:bg-gray-200 rounded">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14M5 12h14"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                document.getElementById('totalAmount').textContent = `¥${total}`;
+                cartSummary.classList.remove('hidden');
+            }
+        }
+
+        // 切换购物车
+        function toggleCart() {
+            const cartModal = document.getElementById('cartModal');
+            cartModal.classList.toggle('hidden');
+        }
+
+        // 提交订单
+        function placeOrder() {
+            const tableNumber = document.getElementById('tableNumber').value;
+            
+            if (cart.length === 0) {
+                alert('请先添加菜品到购物车');
+                return;
+            }
+            
+            if (!tableNumber.trim()) {
+                alert('请输入桌号');
+                return;
+            }
+            
+            // 检查库存
+            const outOfStockItems = cart.filter(cartItem => {
+                const menuItem = mockMenu.find(item => item.id === cartItem.id);
+                return menuItem && menuItem.stock !== undefined && cartItem.quantity > menuItem.stock;
+            });
+            
+            if (outOfStockItems.length > 0) {
+                showSuccess('部分菜品库存不足，请调整数量');
+                return;
+            }
+            
+            const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const newOrder = {
+                id: Date.now().toString(),
+                tableNumber,
+                items: [...cart],
+                totalAmount: total,
+                status: 'pending',
+                orderTime: new Date().toLocaleString('zh-CN'),
+                customerName: currentUser.name,
+                paymentMethod: 'cash', // 可以扩展支付方式
+                notes: '' // 订单备注
+            };
+            
+            // 更新库存
+            cart.forEach(cartItem => {
+                const menuItem = mockMenu.find(item => item.id === cartItem.id);
+                if (menuItem && menuItem.stock !== undefined) {
+                    menuItem.stock -= cartItem.quantity;
+                }
+            });
+            
+            orders.unshift(newOrder);
+            
+            // 限制订单数量
+            if (orders.length > CONFIG.MAX_ORDERS) {
+                orders = orders.slice(0, CONFIG.MAX_ORDERS);
+            }
+            
+            cart = [];
+            updateCartUI();
+            toggleCart();
+            document.getElementById('tableNumber').value = '';
+            
+            // 保存数据
+            autoSave();
+            
+            showSuccess(`订单提交成功！桌号:${tableNumber}，总金额:¥${total}`);
+        }
+
+        // 显示管理界面
+        function showAdminView() {
+            if (currentUser.role !== 'admin') {
+                showSuccess('您没有管理员权限');
+                return;
+            }
+            
+            document.getElementById('customerView').classList.add('hidden');
+            document.getElementById('adminView').classList.remove('hidden');
+            document.getElementById('adminUser').textContent = `管理员: ${currentUser.name}`;
+            
+            showOrdersTab();
+            refreshOrders();
+        }
+
+        // 返回顾客界面
+        function backToCustomer() {
+            document.getElementById('adminView').classList.add('hidden');
+            document.getElementById('customerView').classList.remove('hidden');
+        }
+
+        // 显示订单标签
+        function showOrdersTab() {
+            document.getElementById('ordersContent').classList.remove('hidden');
+            document.getElementById('menuContent').classList.add('hidden');
+            
+            document.getElementById('ordersTab').className = 'py-4 border-b-2 border-green-600 text-green-600 font-medium whitespace-nowrap';
+            document.getElementById('menuTab').className = 'py-4 border-b-2 border-transparent text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap';
+            
+            refreshOrders();
+        }
+
+        // 显示菜单标签
+        function showMenuTab() {
+            document.getElementById('ordersContent').classList.add('hidden');
+            document.getElementById('menuContent').classList.remove('hidden');
+            
+            document.getElementById('menuTab').className = 'py-4 border-b-2 border-green-600 text-green-600 font-medium whitespace-nowrap';
+            document.getElementById('ordersTab').className = 'py-4 border-b-2 border-transparent text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap';
+            
+            renderMenuTable();
+        }
+
+        // 刷新订单
+        function refreshOrders() {
+            const ordersList = document.getElementById('ordersList');
+            
+            if (orders.length === 0) {
+                ordersList.innerHTML = '<div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">📋 暂无订单</div>';
+                return;
+            }
+            
+            const todayRevenue = orders
+                .filter(order => order.status === 'completed')
+                .reduce((sum, order) => sum + order.totalAmount, 0);
+            
+            ordersList.innerHTML = `
+                <div class="mb-6 p-4 bg-green-50 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-green-800 font-semibold">📊 今日营业额: ¥${todayRevenue}</span>
+                        <span class="text-green-600">订单总数: ${orders.length}</span>
+                    </div>
+                </div>
+                ${orders.map(order => `
+                    <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold">🪑 桌号: ${order.tableNumber}</h3>
+                                <p class="text-gray-600">👤 顾客: ${order.customerName}</p>
+                                <p class="text-sm text-gray-500">⏰ 下单时间: ${order.orderTime}</p>
+                                ${order.paymentMethod ? `<p class="text-sm text-gray-500">💳 支付方式: ${order.paymentMethod === 'cash' ? '现金' : '在线支付'}</p>` : ''}
+                            </div>
+                            <div class="text-right">
+                                <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                                    order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                                }">
+                                    ${order.status === 'pending' ? '⏰ 待处理' : '✅ 已完成'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h4 class="font-medium mb-2">🍽️ 菜品明细:</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                ${order.items.map(item => `
+                                    <div class="flex justify-between text-sm">
+                                        <span>${item.name} x${item.quantity}</span>
+                                        <span class="font-medium">¥${item.price * item.quantity}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center pt-4 border-t">
+                            <div class="text-xl font-bold text-red-600">
+                                💰 总计: ¥${order.totalAmount}
+                            </div>
+                            ${order.status === 'pending' ? `
+                                <button onclick="completeOrder('${order.id}')" 
+                                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                    ✅ 标记完成
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        // 渲染菜单表格
+        function renderMenuTable() {
+            const menuTable = document.getElementById('menuTable');
+            
+            menuTable.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b">
+                                <th class="text-left py-2">图片</th>
+                                <th class="text-left py-2">名称</th>
+                                <th class="text-left py-2">分类</th>
+                                <th class="text-left py-2">价格</th>
+                                <th class="text-left py-2">辣度</th>
+                                <th class="text-left py-2">库存</th>
+                                <th class="text-left py-2">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${mockMenu.map(item => `
+                                <tr class="border-b">
+                                    <td class="py-2">
+                                        <img src="${item.image}" alt="${item.name}" class="w-12 h-12 object-cover rounded">
+                                    </td>
+                                    <td class="py-2 font-medium">${item.name}</td>
+                                    <td class="py-2">${item.category}</td>
+                                    <td class="py-2">¥${item.price}</td>
+                                    <td class="py-2">
+                                        <div class="flex items-center gap-1">
+                                            ${Array.from({length: 5}, (_, i) => 
+                                                `<span class="${i < (item.spicy || 0) ? 'text-red-500' : 'text-gray-300'}">🌶️</span>`
+                                            ).join('')}
+                                        </div>
+                                    </td>
+                                    <td class="py-2">
+                                        <span class="${item.stock !== undefined && item.stock < 20 ? 'text-red-600 font-semibold' : ''}">
+                                            ${item.stock !== undefined ? item.stock : '无限'}
+                                        </span>
+                                    </td>
+                                    <td class="py-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="editMenuItem('${item.id}')" class="p-1 text-blue-600 hover:bg-blue-50 rounded">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                </svg>
+                                            </button>
+                                            <button onclick="deleteMenuItem('${item.id}')" class="p-1 text-red-600 hover:bg-red-50 rounded">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <polyline points="3 6 5 6 21 6"/>
+                                                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // 完成订单
+        function completeOrder(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (order) {
+                order.status = 'completed';
+                order.completedTime = new Date().toLocaleString('zh-CN');
+                autoSave();
+                refreshOrders();
+                showSuccess('订单状态已更新！营业额已统计');
+            }
+        }
+
+        // 添加菜品
+        function addMenuItem() {
+            const name = prompt('请输入菜品名称:');
+            if (!name) return;
+            
+            const category = prompt('请输入分类 (热菜/凉菜/主食/汤品/饮料):');
+            const price = parseFloat(prompt('请输入价格:'));
+            const description = prompt('请输入描述:');
+            const spicy = parseInt(prompt('请输入辣度 (0-5):')) || 0;
+            const stock = parseInt(prompt('请输入库存数量 (留空表示无限):')) || undefined;
+            const imageUrl = prompt('请输入图片URL (留空使用默认图片):');
+            
+            const newItem = {
+                id: Date.now().toString(),
+                name: name,
+                category: category || '热菜',
+                price: price || 0,
+                description: description || '',
+                image: imageUrl || generateFoodImage(name),
+                spicy: Math.min(5, Math.max(0, spicy)),
+                stock: stock
+            };
+            
+            mockMenu.push(newItem);
+            autoSave();
+            showSuccess('菜品添加成功！');
+            loadMenu();
+            renderMenuTable();
+        }
+
+        // 编辑菜品
+        function editMenuItem(itemId) {
+            const item = mockMenu.find(i => i.id === itemId);
+            if (!item) return;
+            
+            const name = prompt('请输入新的菜品名称:', item.name);
+            if (!name) return;
+            
+            const price = parseFloat(prompt('请输入新的价格:', item.price));
+            const description = prompt('请输入新的描述:', item.description);
+            const spicy = parseInt(prompt('请输入新的辣度 (0-5):', item.spicy)) || 0;
+            const stock = prompt('请输入新的库存数量:', item.stock !== undefined ? item.stock : '');
+            const imageUrl = prompt('请输入新的图片URL (留空保持不变):', item.image);
+            
+            item.name = name;
+            item.price = price || item.price;
+            item.description = description || item.description;
+            item.spicy = Math.min(5, Math.max(0, spicy));
+            item.stock = stock ? parseInt(stock) : undefined;
+            if (imageUrl) {
+                item.image = imageUrl;
+            }
+            
+            autoSave();
+            showSuccess('菜品编辑成功！');
+            loadMenu();
+            renderMenuTable();
+        }
+
+        // 删除菜品
+        function deleteMenuItem(itemId) {
+            if (confirm('确定要删除这个菜品吗？此操作不可恢复！')) {
+                const index = mockMenu.findIndex(item => item.id === itemId);
+                if (index > -1) {
+                    mockMenu.splice(index, 1);
+                    autoSave();
+                    showSuccess('菜品删除成功！');
+                    loadMenu();
+                    renderMenuTable();
+                }
+            }
+        }
+
+        // 导出订单
+        function exportOrders() {
+            if (orders.length === 0) {
+                showSuccess('没有订单可以导出');
+                return;
+            }
+            
+            const csv = [
+                ['订单号', '桌号', '顾客', '时间', '状态', '金额', '菜品'],
+                ...orders.map(order => [
+                    order.id,
+                    order.tableNumber,
+                    order.customerName,
+                    order.orderTime,
+                    order.status,
+                    order.totalAmount,
+                    order.items.map(item => `${item.name}x${item.quantity}`).join(';')
+                ])
+            ].map(row => row.join(',')).join('\n');
+            
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `订单导出_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            
+            showSuccess('订单导出成功！');
+        }
+
+        // 导入菜单
+        function importMenu() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedMenu = JSON.parse(e.target.result);
+                        if (Array.isArray(importedMenu)) {
+                            mockMenu = importedMenu;
+                            autoSave();
+                            loadMenu();
+                            renderMenuTable();
+                            showSuccess('菜单导入成功！');
+                        }
+                    } catch (error) {
+                        showSuccess('导入失败，请检查文件格式');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // 登出
+        function logout() {
+            currentUser = null;
+            cart = [];
+            currentCategory = '热菜';
+            
+            document.getElementById('customerView').classList.add('hidden');
+            document.getElementById('adminView').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+            
+            showSuccess('已安全登出');
+        }
+
+        // 显示成功消息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const successText = document.getElementById('successText');
+            
+            successText.textContent = message;
+            successDiv.classList.remove('hidden');
+            
+            setTimeout(() => {
+                successDiv.classList.add('hidden');
+            }, 3000);
+        }
+
+        // 模拟实时订单
+        function simulateRealTimeOrders() {
+            setInterval(() => {
+                // 随机添加新订单
+                if (Math.random() < 0.05 && orders.length < CONFIG.MAX_ORDERS) {
+                    const randomItems = mockMenu
+                        .filter(item => !item.stock || item.stock > 0)
+                        .sort(() => Math.random() - 0.5)
+                        .slice(0, Math.floor(Math.random() * 3) + 1)
+                        .map(item => ({ ...item, quantity: Math.floor(Math.random() * 2) + 1 }));
+                    
+                    const total = randomItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                    
+                    const newOrder = {
+                        id: Date.now().toString(),
+                        tableNumber: String(Math.floor(Math.random() * 20) + 1).padStart(2, '0'),
+                        items: randomItems,
+                        totalAmount: total,
+                        status: 'pending',
+                        orderTime: new Date().toLocaleString('zh-CN'),
+                        customerName: ['张三', '李四', '王五', '赵六', '钱七'][Math.floor(Math.random() * 5)]
+                    };
+                    
+                    orders.unshift(newOrder);
+                    
+                    // 更新库存
+                    randomItems.forEach(cartItem => {
+                        const menuItem = mockMenu.find(item => item.id === cartItem.id);
+                        if (menuItem && menuItem.stock !== undefined) {
+                            menuItem.stock -= cartItem.quantity;
+                        }
+                    });
+                    
+                    autoSave();
+                    
+                    // 如果管理界面可见，刷新订单列表
+                    if (!document.getElementById('adminView').classList.contains('hidden')) {
+                        refreshOrders();
+                    }
+                }
+            }, 15000); // 每15秒检查一次
+        }
+
+        // 启动应用
+        initApp();
+
+        // 页面可见性变化时保存数据
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                autoSave();
+            }
+        });
+
+        // 生成食物图片
+        function generateFoodImage(foodName) {
+            // 根据菜品类型生成不同颜色的背景图片
+            const categoryColors = {
+                '热菜': '#fee3d2',  // 红色系
+                '凉菜': '#f0fdf4',  // 绿色系  
+                '主食': '#fef3c7',  // 黄色系
+                '汤品': '#e6f3ff',  // 蓝色系
+                '饮料': '#faf5ff'   // 紫色系
+            };
+            
+            // 简单的食物图片生成器
+            const category = foodName.includes('汤') ? '汤品' : 
+                           foodName.includes('面') || foodName.includes('饭') ? '主食' :
+                           foodName.includes('可乐') || foodName.includes('汤') ? '饮料' :
+                           foodName.includes('黄瓜') || foodName.includes('鸡') ? '凉菜' : '热菜';
+            
+            const bgColor = categoryColors[category] || '#fee3d2';
+            const textColor = category === '热菜' ? '#dc2626' : 
+                            category === '凉菜' ? '#16a34a' :
+                            category === '主食' ? '#d97706' :
+                            category === '汤品' ? '#2563eb' : '#9333ea';
+            
+            // 创建SVG图片
+            const svgContent = `
+                <svg width="200" height="150" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="150" fill="${bgColor}"/>
+                    <text x="50%" y="50%" text-anchor="middle" fill="${textColor}" font-size="16" font-family="Arial, sans-serif">${foodName}</text>
+                </svg>
+            `;
+            
+            return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
+        }
+
+        // 批量更新图片
+        function updateAllImages() {
+            const useCustom = confirm('是否使用自定义图片URL？\n确定：输入每个菜品的图片URL\n取消：使用系统生成的图片');
+            
+            if (useCustom) {
+                // 逐个询问每个菜品的图片URL
+                mockMenu.forEach((item, index) => {
+                    const newUrl = prompt(`请输入 "${item.name}" 的图片URL:`, item.image);
+                    if (newUrl) {
+                        item.image = newUrl;
+                    }
+                });
+            } else {
+                // 使用系统生成的图片
+                mockMenu.forEach(item => {
+                    item.image = generateFoodImage(item.name);
+                });
+            }
+            
+            autoSave();
+            showSuccess('菜品图片已更新！');
+            loadMenu();
+            renderMenuTable();
+        }
+
+        // 页面卸载前保存数据
+        window.addEventListener('beforeunload', () => {
+            autoSave();
+        });
+    </script>
+</body>
+</html>
